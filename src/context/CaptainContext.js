@@ -1,64 +1,132 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect } from 'react'
-import { captains } from '@/data/captains'
+import { useRouter } from 'next/navigation'
 
 const CaptainContext = createContext()
 
 export function CaptainProvider({ children }) {
   const [currentCaptain, setCurrentCaptain] = useState(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  // Load captain from localStorage
+  // Load captain from localStorage on mount
   useEffect(() => {
-    const savedCaptain = localStorage.getItem('currentCaptain')
-    if (savedCaptain) {
+    const loadCaptain = () => {
       try {
-        const captain = JSON.parse(savedCaptain)
-        setCurrentCaptain(captain)
-        setIsAuthenticated(true)
+        const token = localStorage.getItem('authToken')
+        const user = localStorage.getItem('user')
+
+        if (token && user) {
+          const userData = JSON.parse(user)
+          
+          // Only set if user is a captain
+          if (userData.role === 'captain') {
+            setCurrentCaptain(userData)
+            setIsAuthenticated(true)
+          }
+        }
       } catch (error) {
         console.error('Error loading captain:', error)
-        localStorage.removeItem('currentCaptain')
+        localStorage.removeItem('authToken')
+        localStorage.removeItem('user')
+      } finally {
+        setLoading(false)
       }
     }
+
+    loadCaptain()
   }, [])
 
-  const login = (username, password) => {
-    const captain = captains.find(
-      (c) => c.username === username && c.password === password
-    )
+  const login = async (email, password) => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-    if (captain) {
-      // Don't store password
-      const { password: _, ...captainData } = captain
-      setCurrentCaptain(captainData)
-      setIsAuthenticated(true)
-      localStorage.setItem('currentCaptain', JSON.stringify(captainData))
-      return { success: true, captain: captainData }
+      const result = await response.json()
+
+      if (result.success) {
+        const { token, user } = result.data
+
+        // Verify user is a captain
+        if (user.role !== 'captain') {
+          return { 
+            success: false, 
+            error: 'This login is only for Captains. Please use the correct login page.' 
+          }
+        }
+
+        // Save to localStorage
+        localStorage.setItem('authToken', token)
+        localStorage.setItem('user', JSON.stringify(user))
+
+        // Update state
+        setCurrentCaptain(user)
+        setIsAuthenticated(true)
+
+        return { success: true, captain: user }
+      } else {
+        return { success: false, error: result.error || 'Login failed' }
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      return { success: false, error: 'Failed to login. Please try again.' }
     }
-
-    return { success: false, error: 'Invalid username or password' }
   }
 
   const logout = () => {
     setCurrentCaptain(null)
     setIsAuthenticated(false)
-    localStorage.removeItem('currentCaptain')
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('user')
   }
 
-  return (
-    <CaptainContext.Provider
-      value={{
-        currentCaptain,
-        isAuthenticated,
-        login,
-        logout,
-      }}
-    >
-      {children}
-    </CaptainContext.Provider>
-  )
+  // Get auth headers for API calls
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('authToken')
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  }
+
+  // Make authenticated API call
+  const captainFetch = async (url, options = {}) => {
+    const headers = {
+      ...getAuthHeaders(),
+      ...options.headers,
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    })
+
+    // If unauthorized, logout
+    if (response.status === 401) {
+      logout()
+      throw new Error('Unauthorized')
+    }
+
+    return response
+  }
+
+  const value = {
+    currentCaptain,
+    isAuthenticated,
+    loading,
+    login,
+    logout,
+    getAuthHeaders,
+    captainFetch,
+  }
+
+  return <CaptainContext.Provider value={value}>{children}</CaptainContext.Provider>
 }
 
 export function useCaptain() {

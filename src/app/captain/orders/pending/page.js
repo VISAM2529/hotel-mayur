@@ -3,27 +3,138 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCaptain } from '@/context/CaptainContext'
-import { useOrders } from '@/context/OrdersContext'
 import CaptainNavbar from '@/components/captain/CaptainNavbar'
 import OrderCard from '@/components/captain/OrderCard'
 import toast from 'react-hot-toast'
 
 export default function PendingOrdersPage() {
   const router = useRouter()
-  const { currentCaptain, isAuthenticated } = useCaptain()
-  const { orders, updateOrderStatus } = useOrders()
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all') // all, ac, non-ac
+  const { currentCaptain, isAuthenticated, loading, captainFetch } = useCaptain()
+  const [dataLoading, setDataLoading] = useState(true)
+  const [orders, setOrders] = useState([])
+  const [filter, setFilter] = useState('all') // all, urgent, recent
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!loading && !isAuthenticated) {
       router.push('/captain/login')
       return
     }
-    setLoading(false)
-  }, [isAuthenticated, router])
 
-  if (loading) {
+    if (isAuthenticated) {
+      fetchPendingOrders()
+    }
+  }, [isAuthenticated, loading, router])
+
+  const fetchPendingOrders = async () => {
+    try {
+      setDataLoading(true)
+
+      const response = await captainFetch('/api/orders?status=pending&sortBy=createdAt&sortOrder=desc')
+      const data = await response.json()
+
+      if (data.success) {
+        setOrders(data.data.orders)
+      } else {
+        toast.error('Failed to load orders')
+      }
+
+      setDataLoading(false)
+    } catch (error) {
+      console.error('Error fetching orders:', error)
+      toast.error('Failed to load orders')
+      setDataLoading(false)
+    }
+  }
+
+  const handleApproveOrder = async (order) => {
+    if (confirm(`Approve order ${order.orderNumber} from Table ${order.tableNumber}?`)) {
+      try {
+        const response = await captainFetch(`/api/orders/${order._id}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'confirmed' })
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          toast.success(
+            <div>
+              <p className="font-bold">Order Approved! ✅</p>
+              <p className="text-sm">KOT sent to kitchen</p>
+            </div>,
+            { duration: 4000 }
+          )
+          fetchPendingOrders()
+        } else {
+          toast.error(result.error || 'Failed to approve order')
+        }
+      } catch (error) {
+        console.error('Error approving order:', error)
+        toast.error('Failed to approve order')
+      }
+    }
+  }
+
+  const handleRejectOrder = async (order) => {
+    const reason = prompt(`Reason for rejecting order ${order.orderNumber}?`)
+    if (reason) {
+      try {
+        const response = await captainFetch(`/api/orders/${order._id}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ 
+            status: 'rejected',
+            rejectionReason: reason
+          })
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          toast.error(
+            <div>
+              <p className="font-bold">Order Rejected</p>
+              <p className="text-sm">Customer will be notified</p>
+            </div>,
+            { duration: 4000 }
+          )
+          fetchPendingOrders()
+        } else {
+          toast.error(result.error || 'Failed to reject order')
+        }
+      } catch (error) {
+        console.error('Error rejecting order:', error)
+        toast.error('Failed to reject order')
+      }
+    }
+  }
+
+  const handleViewDetails = (order) => {
+    router.push(`/captain/orders/${order._id}`)
+  }
+
+  const handleApproveAll = async () => {
+    if (orders.length === 0) return
+    
+    if (confirm(`Approve all ${orders.length} pending orders?`)) {
+      try {
+        const promises = orders.map(order =>
+          captainFetch(`/api/orders/${order._id}/status`, {
+            method: 'PUT',
+            body: JSON.stringify({ status: 'confirmed' })
+          })
+        )
+
+        await Promise.all(promises)
+        toast.success(`${orders.length} orders approved!`)
+        fetchPendingOrders()
+      } catch (error) {
+        console.error('Error approving all orders:', error)
+        toast.error('Failed to approve all orders')
+      }
+    }
+  }
+
+  if (loading || dataLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 flex items-center justify-center">
         <div className="text-center">
@@ -34,54 +145,19 @@ export default function PendingOrdersPage() {
     )
   }
 
-  // Filter orders for captain's assigned tables and pending status
-  const pendingOrders = orders.filter(order => 
-    currentCaptain?.assignedTables.includes(parseInt(order.tableNumber)) &&
-    order.status === 'pending'
-  )
-
-  const handleApproveOrder = (order) => {
-    if (confirm(`Approve order ${order.orderNumber} from Table ${order.tableNumber}?`)) {
-      updateOrderStatus(order.id, 'confirmed')
-      toast.success(
-        <div>
-          <p className="font-bold">Order Approved! ✅</p>
-          <p className="text-sm">KOT sent to kitchen</p>
-        </div>,
-        { duration: 4000 }
-      )
+  const filteredOrders = orders.filter(order => {
+    if (filter === 'urgent') {
+      // Orders older than 10 minutes
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
+      return new Date(order.createdAt) < tenMinutesAgo
     }
-  }
-
-  const handleRejectOrder = (order) => {
-    const reason = prompt(`Reason for rejecting order ${order.orderNumber}?`)
-    if (reason) {
-      updateOrderStatus(order.id, 'rejected')
-      toast.error(
-        <div>
-          <p className="font-bold">Order Rejected</p>
-          <p className="text-sm">Customer will be notified</p>
-        </div>,
-        { duration: 4000 }
-      )
+    if (filter === 'recent') {
+      // Orders from last 5 minutes
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+      return new Date(order.createdAt) >= fiveMinutesAgo
     }
-  }
-
-  const handleViewDetails = (order) => {
-    // For now, we'll just show an alert. You can create a detailed view page later
-    router.push(`/captain/orders/${order.id}`)
-  }
-
-  const handleApproveAll = () => {
-    if (pendingOrders.length === 0) return
-    
-    if (confirm(`Approve all ${pendingOrders.length} pending orders?`)) {
-      pendingOrders.forEach(order => {
-        updateOrderStatus(order.id, 'confirmed')
-      })
-      toast.success(`${pendingOrders.length} orders approved!`)
-    }
-  }
+    return true
+  })
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
@@ -106,17 +182,17 @@ export default function PendingOrdersPage() {
                   Pending Orders
                 </h1>
                 <p className="text-gray-600 mt-1">
-                  {pendingOrders.length} {pendingOrders.length === 1 ? 'order' : 'orders'} awaiting your approval
+                  {orders.length} {orders.length === 1 ? 'order' : 'orders'} awaiting your approval
                 </p>
               </div>
             </div>
 
-            {pendingOrders.length > 0 && (
+            {orders.length > 0 && (
               <button
                 onClick={handleApproveAll}
                 className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:from-green-600 hover:to-emerald-600 transition-all shadow-lg hover:shadow-xl"
               >
-                Approve All ({pendingOrders.length})
+                Approve All ({orders.length})
               </button>
             )}
           </div>
@@ -132,7 +208,7 @@ export default function PendingOrdersPage() {
                 : 'bg-white text-gray-600 hover:bg-gray-50'
             }`}
           >
-            All Orders ({pendingOrders.length})
+            All Orders ({orders.length})
           </button>
           <button
             onClick={() => setFilter('urgent')}
@@ -157,11 +233,11 @@ export default function PendingOrdersPage() {
         </div>
 
         {/* Orders Grid */}
-        {pendingOrders.length > 0 ? (
+        {filteredOrders.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {pendingOrders.map((order, index) => (
+            {filteredOrders.map((order, index) => (
               <div
-                key={order.id}
+                key={order._id}
                 className="animate-slide-up"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
@@ -196,13 +272,13 @@ export default function PendingOrdersPage() {
         )}
 
         {/* Quick Stats */}
-        {pendingOrders.length > 0 && (
+        {orders.length > 0 && (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white rounded-2xl p-6 border border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Total Pending</p>
-                  <p className="text-3xl font-bold text-gray-900">{pendingOrders.length}</p>
+                  <p className="text-3xl font-bold text-gray-900">{orders.length}</p>
                 </div>
                 <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
                   <span className="text-2xl">⏳</span>
@@ -215,7 +291,7 @@ export default function PendingOrdersPage() {
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Pending Value</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    ₹{pendingOrders.reduce((sum, order) => sum + order.total, 0).toFixed(0)}
+                    ₹{orders.reduce((sum, order) => sum + (order.total || 0), 0).toFixed(0)}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -229,8 +305,8 @@ export default function PendingOrdersPage() {
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Avg. Order Value</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    ₹{pendingOrders.length > 0 
-                      ? (pendingOrders.reduce((sum, order) => sum + order.total, 0) / pendingOrders.length).toFixed(0)
+                    ₹{orders.length > 0 
+                      ? (orders.reduce((sum, order) => sum + (order.total || 0), 0) / orders.length).toFixed(0)
                       : 0
                     }
                   </p>

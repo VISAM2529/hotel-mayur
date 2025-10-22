@@ -1,77 +1,46 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCart } from '@/context/CartContext'
-import { useOrders } from '@/context/OrdersContext'
 import Button from '@/components/ui/Button'
 import Image from 'next/image'
 
 export default function OrderConfirmationPage() {
   const router = useRouter()
-  const { cart, tableNumber, getCartTotal, clearCart } = useCart()
-  const { addOrder } = useOrders()
-  const [orderNumber, setOrderNumber] = useState(null)
-  const [estimatedTime, setEstimatedTime] = useState(null)
-  const orderProcessed = useRef(false) // Prevent duplicate processing
+  const { clearCart } = useCart()
+  const [order, setOrder] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check if we have necessary data
-    if (!tableNumber || cart.length === 0) {
+    // Get order from localStorage (saved after API call)
+    const savedOrder = localStorage.getItem('currentOrder')
+    
+    if (!savedOrder) {
+      // No order found, redirect to menu
       router.push('/order/menu')
       return
     }
 
-    // Prevent processing the order multiple times
-    if (orderProcessed.current) return
-    orderProcessed.current = true
+    try {
+      const orderData = JSON.parse(savedOrder)
+      setOrder(orderData)
+      setLoading(false)
 
-    // Generate order details
-    const orderNo = `ORD${Date.now().toString().slice(-6)}`
-    const estimatedMinutes = 20 + Math.floor(Math.random() * 15)
-    
-    setOrderNumber(orderNo)
-    setEstimatedTime(estimatedMinutes)
-
-    const subtotal = getCartTotal()
-    const gst = subtotal * 0.05
-    const serviceCharge = subtotal * 0.10
-    const total = subtotal + gst + serviceCharge
-
-    // Save order to context
-    const savedOrder = addOrder({
-      orderNumber: orderNo,
-      tableNumber,
-      items: [...cart], // Create a copy of cart items
-      subtotal,
-      gst,
-      serviceCharge,
-      total,
-      estimatedTime: estimatedMinutes,
-      notes: localStorage.getItem('orderNotes') || '',
-    })
-
-    console.log('Order placed:', savedOrder)
-
-    // Clear cart after 2 seconds
-    const clearTimer = setTimeout(() => {
-      clearCart()
-      localStorage.removeItem('orderNotes')
-    }, 2000)
-
-    return () => {
-      clearTimeout(clearTimer)
+      // Clear cart after showing confirmation
+      setTimeout(() => {
+        clearCart()
+        localStorage.removeItem('orderNotes')
+        // Keep currentOrder for tracking page
+      }, 1000)
+    } catch (error) {
+      console.error('Error loading order:', error)
+      router.push('/order/menu')
     }
-  }, []) // Empty dependency array - run only once
-
-  // Calculate totals safely
-  const subtotal = cart.length > 0 ? getCartTotal() : 0
-  const gst = subtotal * 0.05
-  const serviceCharge = subtotal * 0.10
-  const total = subtotal + gst + serviceCharge
+  }, [router, clearCart])
 
   // Show loading while processing
-  if (!orderNumber || !estimatedTime) {
+  if (loading || !order) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center p-4">
         <div className="text-center">
@@ -79,11 +48,14 @@ export default function OrderConfirmationPage() {
             <div className="absolute inset-0 border-4 border-green-200 rounded-full"></div>
             <div className="absolute inset-0 border-4 border-green-500 rounded-full border-t-transparent animate-spin"></div>
           </div>
-          <p className="text-lg font-medium text-gray-700">Processing your order...</p>
+          <p className="text-lg font-medium text-gray-700">Loading order details...</p>
         </div>
       </div>
     )
   }
+
+  // Calculate estimated time (20-35 minutes based on items count)
+  const estimatedMinutes = 20 + Math.min(order.items.length * 2, 15)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center p-4">
@@ -112,14 +84,21 @@ export default function OrderConfirmationPage() {
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Order Number</p>
-                <p className="font-bold text-xl text-gray-900">{orderNumber}</p>
+                <p className="font-bold text-xl text-gray-900">{order.orderNumber}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Table Number</p>
-                <p className="font-bold text-xl text-gray-900">#{tableNumber}</p>
+                <p className="font-bold text-xl text-gray-900">#{order.tableNumber}</p>
               </div>
             </div>
-            <div className="bg-gradient-to-r from-amber-100 to-orange-100 border-2 border-amber-300 rounded-xl p-4 flex items-center space-x-3">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Order Status</p>
+              <div className="inline-flex items-center bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+                <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></span>
+                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+              </div>
+            </div>
+            <div className="bg-gradient-to-r from-amber-100 to-orange-100 border-2 border-amber-300 rounded-xl p-4 flex items-center space-x-3 mt-4">
               <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
                 <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -127,45 +106,45 @@ export default function OrderConfirmationPage() {
               </div>
               <div>
                 <p className="font-semibold text-amber-900">Estimated Time</p>
-                <p className="text-lg font-bold text-amber-700">{estimatedTime} minutes</p>
+                <p className="text-lg font-bold text-amber-700">{estimatedMinutes} minutes</p>
               </div>
             </div>
           </div>
 
           {/* Order Items */}
-          {cart.length > 0 && (
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
-                <svg className="w-5 h-5 mr-2 text-primary-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                  <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
-                </svg>
-                Your Order
-              </h3>
-              <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
-                {cart.map((item, index) => (
-                  <div key={`${item.id}-${index}`} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="relative w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
-                        <Image
-                          src={item.image}
-                          alt={item.name}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900">{item.name}</p>
-                        <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
-                        {item.customization && (
-                          <p className="text-xs text-gray-500 italic mt-1">Note: {item.customization}</p>
-                        )}
-                      </div>
+          <div className="mb-6">
+            <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+              <svg className="w-5 h-5 mr-2 text-primary-500" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+              </svg>
+              Your Order ({order.items.length} items)
+            </h3>
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+              {order.items.map((item, index) => (
+                <div key={`${item.menuItem}-${index}`} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                  <div className="flex items-center space-x-3 flex-1">
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">{item.name}</p>
+                      <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                      {item.specialInstructions && (
+                        <p className="text-xs text-orange-600 italic mt-1 bg-orange-50 px-2 py-1 rounded inline-block">
+                          Note: {item.specialInstructions}
+                        </p>
+                      )}
                     </div>
-                    <p className="font-bold text-gray-900">₹{item.price * item.quantity}</p>
                   </div>
-                ))}
-              </div>
+                  <p className="font-bold text-gray-900">₹{item.subtotal.toFixed(2)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Order Notes */}
+          {order.notes && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+              <p className="text-sm font-medium text-yellow-900 mb-1">Order Notes:</p>
+              <p className="text-sm text-yellow-800">{order.notes}</p>
             </div>
           )}
 
@@ -175,20 +154,28 @@ export default function OrderConfirmationPage() {
             <div className="space-y-2 mb-3 pb-3 border-b border-primary-200">
               <div className="flex justify-between text-sm text-gray-700">
                 <span>Subtotal</span>
-                <span className="font-medium">₹{subtotal.toFixed(2)}</span>
+                <span className="font-medium">₹{order.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm text-gray-700">
-                <span>GST (5%)</span>
-                <span className="font-medium">₹{gst.toFixed(2)}</span>
+                <span>GST ({order.taxPercent}%)</span>
+                <span className="font-medium">₹{order.tax.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm text-gray-700">
-                <span>Service Charge (10%)</span>
-                <span className="font-medium">₹{serviceCharge.toFixed(2)}</span>
-              </div>
+              {order.serviceCharge > 0 && (
+                <div className="flex justify-between text-sm text-gray-700">
+                  <span>Service Charge ({order.serviceChargePercent}%)</span>
+                  <span className="font-medium">₹{order.serviceCharge.toFixed(2)}</span>
+                </div>
+              )}
+              {order.discount > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Discount</span>
+                  <span className="font-medium">-₹{order.discount.toFixed(2)}</span>
+                </div>
+              )}
             </div>
             <div className="flex justify-between items-center">
               <span className="font-bold text-lg text-gray-900">Total Amount</span>
-              <span className="text-3xl font-bold text-primary-600">₹{total.toFixed(2)}</span>
+              <span className="text-3xl font-bold text-primary-600">₹{order.total.toFixed(2)}</span>
             </div>
           </div>
 

@@ -62,10 +62,10 @@ export default function DishCard({ dish }) {
             </div>
           </div>
           {/* Rating Badge */}
-          <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-md flex items-center space-x-1">
+          {/* <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-md flex items-center space-x-1">
             <span className="text-yellow-400 text-sm">★</span>
             <span className="text-sm font-semibold">{dish.rating}</span>
-          </div>
+          </div> */}
         </div>
 
         {/* Content Section */}

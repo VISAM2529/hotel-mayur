@@ -75,7 +75,7 @@ export async function GET(request) {
     
     // Get total count
     const total = await MenuItem.countDocuments(query)
-    
+    console.log(total)
     return NextResponse.json(
       {
         success: true,

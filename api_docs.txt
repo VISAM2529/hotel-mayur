@@ -1,0 +1,697 @@
+# 🚀 Hotel Mayur Backend API Documentation
+
+## 📋 Table of Contents
+1. [Authentication APIs](#authentication-apis)
+2. [Menu APIs](#menu-apis)
+3. [Orders APIs](#orders-apis)
+4. [Tables APIs](#tables-apis)
+5. [Error Handling](#error-handling)
+6. [Setup Instructions](#setup-instructions)
+
+---
+
+## 🔐 Authentication APIs
+
+### 1. Register User
+**POST** `/api/auth/register`
+
+Register a new user/staff member.
+
+**Request Body:**
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "password123",
+  "role": "waiter",
+  "phone": "+91 9876543210",
+  "specialization": "Main Course"
+}
+```
+
+**Roles:** `admin`, `manager`, `captain`, `waiter`, `chef`, `kitchen_staff`
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User registered successfully",
+  "data": {
+    "user": {
+      "id": "64abc123...",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "role": "waiter",
+      "permissions": { ... }
+    }
+  }
+}
+```
+
+---
+
+### 2. Login
+**POST** `/api/auth/login`
+
+Authenticate user and get JWT token.
+
+**Request Body:**
+```json
+{
+  "email": "john@example.com",
+  "password": "password123",
+  "role": "waiter"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "user": { ... },
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+**Note:** Token is also set as HTTP-only cookie.
+
+---
+
+### 3. Get Current User
+**GET** `/api/auth/me`
+
+Get currently authenticated user details.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "64abc123...",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "role": "waiter",
+      "permissions": { ... }
+    }
+  }
+}
+```
+
+---
+
+### 4. Logout
+**POST** `/api/auth/logout`
+
+Logout user and clear token cookie.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Logged out successfully"
+}
+```
+
+---
+
+## 🍽️ Menu APIs
+
+### 1. Get All Menu Items
+**GET** `/api/menu/items`
+
+Get all menu items with optional filters.
+
+**Query Parameters:**
+- `category` - Filter by category ID
+- `isAvailable` - Filter by availability (true/false)
+- `isVegetarian` - Filter vegetarian items
+- `isPopular` - Filter popular items
+- `search` - Text search in name/description
+- `minPrice` - Minimum price
+- `maxPrice` - Maximum price
+- `page` - Page number (default: 1)
+- `limit` - Items per page (default: 50)
+- `sortBy` - Sort field (default: displayOrder)
+- `sortOrder` - asc/desc (default: asc)
+
+**Example:**
+```
+GET /api/menu/items?category=64abc123&isAvailable=true&page=1&limit=20
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "_id": "64def456...",
+        "name": "Paneer Butter Masala",
+        "description": "Cottage cheese in rich tomato gravy",
+        "category": {
+          "_id": "64abc123...",
+          "name": "Main Course",
+          "icon": "🍛"
+        },
+        "price": 280,
+        "isVegetarian": true,
+        "isAvailable": true,
+        "image": "/images/paneer-butter-masala.jpg",
+        "preparationTime": 20,
+        "spiceLevel": "Medium"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 45,
+      "pages": 3
+    }
+  }
+}
+```
+
+---
+
+### 2. Get Single Menu Item
+**GET** `/api/menu/items/[id]`
+
+Get detailed information about a specific menu item.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "item": {
+      "_id": "64def456...",
+      "name": "Paneer Butter Masala",
+      "description": "Rich and creamy cottage cheese curry",
+      "category": { ... },
+      "price": 280,
+      "customizations": [
+        {
+          "name": "Spice Level",
+          "options": [
+            { "name": "Mild", "price": 0 },
+            { "name": "Medium", "price": 0 },
+            { "name": "Hot", "price": 0 }
+          ],
+          "isRequired": true,
+          "maxSelections": 1
+        }
+      ],
+      "allergens": ["Dairy"],
+      "tags": ["popular", "north-indian", "vegetarian"]
+    }
+  }
+}
+```
+
+---
+
+### 3. Create Menu Item
+**POST** `/api/menu/items`
+
+Create a new menu item. **Requires Permission:** `canManageMenu`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+```json
+{
+  "name": "Butter Chicken",
+  "description": "Tender chicken in creamy tomato gravy",
+  "category": "64abc123...",
+  "price": 320,
+  "isVegetarian": false,
+  "spiceLevel": "Medium",
+  "preparationTime": 25,
+  "image": "/images/butter-chicken.jpg",
+  "allergens": ["Dairy"],
+  "tags": ["popular", "non-veg"]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Menu item created successfully",
+  "data": {
+    "item": { ... }
+  }
+}
+```
+
+---
+
+### 4. Update Menu Item
+**PUT** `/api/menu/items/[id]`
+
+Update an existing menu item. **Requires Permission:** `canManageMenu`
+
+**Request Body:** Same as Create (partial updates allowed)
+
+---
+
+### 5. Delete Menu Item
+**DELETE** `/api/menu/items/[id]`
+
+Delete a menu item. **Requires Permission:** `canManageMenu`
+
+---
+
+## 📋 Orders APIs
+
+### 1. Get All Orders
+**GET** `/api/orders`
+
+Get all orders with filters. **Requires Authentication.**
+
+**Query Parameters:**
+- `status` - Filter by order status
+- `table` - Filter by table ID
+- `tableNumber` - Filter by table number
+- `orderType` - dine-in/takeaway/delivery
+- `startDate` - Start date (ISO format)
+- `endDate` - End date (ISO format)
+- `kitchenStatus` - Get orders for kitchen (confirmed/preparing/ready)
+- `page` - Page number
+- `limit` - Orders per page
+- `sortBy` - Sort field (default: createdAt)
+- `sortOrder` - asc/desc (default: desc)
+
+**Example:**
+```
+GET /api/orders?status=confirmed&tableNumber=5
+GET /api/orders?kitchenStatus=true&sortBy=createdAt&sortOrder=asc
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "orders": [
+      {
+        "_id": "64xyz789...",
+        "orderNumber": "ORD241022001",
+        "table": {
+          "_id": "64tbl123...",
+          "tableNumber": 5,
+          "location": "indoor"
+        },
+        "tableNumber": 5,
+        "status": "confirmed",
+        "orderType": "dine-in",
+        "items": [
+          {
+            "menuItem": "64def456...",
+            "name": "Paneer Butter Masala",
+            "quantity": 2,
+            "price": 280,
+            "subtotal": 560,
+            "status": "confirmed",
+            "specialInstructions": "Less spicy"
+          }
+        ],
+        "subtotal": 560,
+        "tax": 28,
+        "total": 588,
+        "notes": "Birthday celebration",
+        "createdAt": "2024-10-22T10:30:00Z",
+        "createdBy": {
+          "name": "John Doe"
+        }
+      }
+    ],
+    "pagination": { ... }
+  }
+}
+```
+
+---
+
+### 2. Create Order
+**POST** `/api/orders`
+
+Create a new order. **Requires Authentication.**
+
+**Request Body:**
+```json
+{
+  "tableNumber": 5,
+  "orderType": "dine-in",
+  "items": [
+    {
+      "menuItem": "64def456...",
+      "quantity": 2,
+      "customizations": [
+        {
+          "name": "Spice Level",
+          "selectedOptions": [
+            { "name": "Mild", "price": 0 }
+          ]
+        }
+      ],
+      "specialInstructions": "Less oil"
+    }
+  ],
+  "taxPercent": 5,
+  "serviceChargePercent": 10,
+  "discount": 0,
+  "discountType": "none",
+  "notes": "Birthday celebration",
+  "isSupplementary": false,
+  "customer": {
+    "name": "Guest Name",
+    "phone": "+91 9876543210"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Order created successfully",
+  "data": {
+    "order": {
+      "_id": "64xyz789...",
+      "orderNumber": "ORD241022001",
+      "status": "pending",
+      "total": 588,
+      ...
+    }
+  }
+}
+```
+
+---
+
+### 3. Get Single Order
+**GET** `/api/orders/[id]`
+
+Get detailed information about a specific order.
+
+---
+
+### 4. Update Order
+**PUT** `/api/orders/[id]`
+
+Update order details (notes, discount, etc.).
+
+**Request Body:**
+```json
+{
+  "notes": "Updated notes",
+  "discount": 50,
+  "discountType": "fixed",
+  "discountReason": "Manager approval"
+}
+```
+
+---
+
+### 5. Update Order Status
+**PUT** `/api/orders/[id]/status`
+
+Update order status (for kitchen/captain workflow).
+
+**Request Body:**
+```json
+{
+  "status": "preparing"
+}
+```
+
+**Valid Statuses:**
+- `pending` - Initial state
+- `confirmed` - Approved by captain
+- `preparing` - Being cooked
+- `ready` - Ready for serving
+- `served` - Delivered to customer
+- `completed` - Finished
+- `cancelled` - Cancelled
+
+**Kitchen Workflow:**
+```
+pending → confirmed → preparing → ready → served → completed
+```
+
+---
+
+### 6. Cancel Order
+**DELETE** `/api/orders/[id]?reason=Customer request`
+
+Cancel an order (only pending/confirmed orders can be cancelled).
+
+---
+
+## 🪑 Tables APIs
+
+### 1. Get All Tables
+**GET** `/api/tables`
+
+Get all tables with filters.
+
+**Query Parameters:**
+- `status` - available/occupied/reserved/cleaning
+- `location` - indoor/outdoor/terrace/garden/vip
+- `floor` - Floor name
+- `isActive` - true/false
+- `sortBy` - Sort field (default: tableNumber)
+- `sortOrder` - asc/desc
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "tables": [
+      {
+        "_id": "64tbl123...",
+        "tableNumber": 5,
+        "capacity": 4,
+        "status": "occupied",
+        "location": "indoor",
+        "floor": "Ground Floor",
+        "section": "A",
+        "qrCode": "http://localhost:3000/order/5",
+        "currentSession": { ... },
+        "currentOrder": {
+          "orderNumber": "ORD241022001",
+          "status": "confirmed",
+          "total": 588
+        },
+        "features": ["Window View"],
+        "isActive": true
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 2. Create Table
+**POST** `/api/tables`
+
+Create a new table. **Requires Authentication.**
+
+**Request Body:**
+```json
+{
+  "tableNumber": 10,
+  "capacity": 6,
+  "location": "outdoor",
+  "floor": "Ground Floor",
+  "section": "B",
+  "features": ["Garden View", "Wheelchair Accessible"]
+}
+```
+
+---
+
+## ⚠️ Error Handling
+
+### Standard Error Response
+```json
+{
+  "success": false,
+  "error": "Error message here"
+}
+```
+
+### HTTP Status Codes
+- `200` - Success
+- `201` - Created
+- `400` - Bad Request (validation error)
+- `401` - Unauthorized (not authenticated)
+- `403` - Forbidden (insufficient permissions)
+- `404` - Not Found
+- `409` - Conflict (duplicate entry)
+- `500` - Internal Server Error
+
+---
+
+## 🛠️ Setup Instructions
+
+### 1. Install Dependencies
+```bash
+npm install
+```
+
+### 2. Configure Environment
+Create `.env.local` file:
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local`:
+```env
+MONGODB_URI=mongodb://localhost:27017/hotel-mayur
+JWT_SECRET=your-super-secret-key-here
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+### 3. Start MongoDB
+```bash
+# If using local MongoDB
+mongod
+
+# Or use MongoDB Atlas (cloud)
+```
+
+### 4. Run Development Server
+```bash
+npm run dev
+```
+
+Server will start at `http://localhost:3000`
+
+---
+
+## 🔑 Authentication Flow
+
+### 1. For Client Requests
+Include JWT token in Authorization header:
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+### 2. For Browser Requests
+Token is automatically set as HTTP-only cookie after login.
+
+---
+
+## 📱 Frontend Integration
+
+### Example: Login
+```javascript
+const login = async (email, password) => {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  })
+  
+  const data = await response.json()
+  
+  if (data.success) {
+    // Store token
+    localStorage.setItem('token', data.data.token)
+    // Token also set in cookie automatically
+  }
+}
+```
+
+### Example: Create Order
+```javascript
+const createOrder = async (orderData) => {
+  const token = localStorage.getItem('token')
+  
+  const response = await fetch('/api/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(orderData),
+  })
+  
+  return await response.json()
+}
+```
+
+---
+
+## 🚀 Production Deployment
+
+### 1. Environment Variables
+Set all environment variables in production:
+- `MONGODB_URI` - Production MongoDB connection
+- `JWT_SECRET` - Strong secret key
+- `NODE_ENV=production`
+
+### 2. Build Application
+```bash
+npm run build
+```
+
+### 3. Start Production Server
+```bash
+npm start
+```
+
+---
+
+## 📊 Database Indexes
+
+The schemas include optimized indexes for:
+- Fast user lookups by email
+- Quick order filtering by status, table, date
+- Efficient menu item searches
+- Fast table status queries
+
+---
+
+## 🔒 Security Features
+
+- ✅ Password hashing with bcrypt
+- ✅ JWT authentication with HTTP-only cookies
+- ✅ Account lockout after failed attempts
+- ✅ Role-based access control (RBAC)
+- ✅ Permission-based authorization
+- ✅ Input validation
+- ✅ Mongoose schema validation
+
+---
+
+## 📝 Notes
+
+- All timestamps are in UTC
+- Prices are in INR (₹)
+- Phone numbers should include country code
+- Order numbers are auto-generated (ORD + YYMMDD + Counter)
+- Session numbers are auto-generated (SES + YYMMDD + Counter)
+
+---
+
+**Ready to integrate! 🎉**

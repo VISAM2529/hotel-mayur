@@ -1,5 +1,6 @@
 |-- .env
 |-- .gitignore
+|-- api_docs.txt
 |-- eslint.config.mjs
 |-- jsconfig.json
 |-- next.config.mjs
@@ -82,6 +83,18 @@
                     |-- route.js
                 |-- register
                     |-- route.js
+            |-- categories
+                |-- route.js
+                |-- [id]
+                    |-- route.js
+            |-- inventory
+                |-- alerts
+                    |-- route.js
+                |-- route.js
+                |-- [id]
+                    |-- route.js
+                    |-- stock
+                        |-- route.js
             |-- menu
                 |-- items
                     |-- route.js
@@ -160,6 +173,7 @@
         |-- order
             |-- CartItem.jsx
             |-- DishCard.jsx
+            |-- Orderstatustracker.jsx
         |-- ui
             |-- Button.jsx
             |-- Card.jsx
@@ -187,6 +201,7 @@
         |-- mongodb.js
     |-- models
         |-- Category.js
+        |-- Ingredient.js
         |-- MenuItem.js
         |-- Order.js
         |-- Table.js

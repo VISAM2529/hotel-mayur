@@ -3,28 +3,129 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCaptain } from '@/context/CaptainContext'
-import { useOrders } from '@/context/OrdersContext'
 import CaptainNavbar from '@/components/captain/CaptainNavbar'
 import OrderCard from '@/components/captain/OrderCard'
-import { ORDER_STATUS, STATUS_CONFIG } from '@/data/order-status'
 import toast from 'react-hot-toast'
+
+const STATUS_CONFIG = {
+  confirmed: {
+    label: 'Confirmed',
+    icon: '✅',
+    color: 'blue',
+    nextStatus: 'preparing',
+    nextLabel: 'Mark as Preparing'
+  },
+  preparing: {
+    label: 'Preparing',
+    icon: '👨‍🍳',
+    color: 'orange',
+    nextStatus: 'ready',
+    nextLabel: 'Mark as Ready'
+  },
+  ready: {
+    label: 'Ready',
+    icon: '🔔',
+    color: 'purple',
+    nextStatus: 'served',
+    nextLabel: 'Mark as Served'
+  }
+}
 
 export default function ActiveOrdersPage() {
   const router = useRouter()
-  const { currentCaptain, isAuthenticated } = useCaptain()
-  const { orders, updateOrderStatus } = useOrders()
-  const [loading, setLoading] = useState(true)
+  const { currentCaptain, isAuthenticated, loading, captainFetch } = useCaptain()
+  const [dataLoading, setDataLoading] = useState(true)
+  const [orders, setOrders] = useState([])
   const [selectedStatus, setSelectedStatus] = useState('all')
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!loading && !isAuthenticated) {
       router.push('/captain/login')
       return
     }
-    setLoading(false)
-  }, [isAuthenticated, router])
 
-  if (loading) {
+    if (isAuthenticated) {
+      fetchActiveOrders()
+    }
+  }, [isAuthenticated, loading, router])
+
+  const fetchActiveOrders = async () => {
+    try {
+      setDataLoading(true)
+
+      // Fetch orders with active statuses
+      const response = await captainFetch('/api/orders?kitchenStatus=true&sortBy=createdAt&sortOrder=desc')
+      const data = await response.json()
+
+      if (data.success) {
+        setOrders(data.data.orders)
+      } else {
+        toast.error('Failed to load orders')
+      }
+
+      setDataLoading(false)
+    } catch (error) {
+      console.error('Error fetching orders:', error)
+      toast.error('Failed to load orders')
+      setDataLoading(false)
+    }
+  }
+
+  const handleUpdateStatus = async (order, newStatus) => {
+    try {
+      const response = await captainFetch(`/api/orders/${order._id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: newStatus })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        const statusConfig = STATUS_CONFIG[newStatus]
+        toast.success(`Order ${order.orderNumber} marked as ${statusConfig?.label || newStatus}`)
+        fetchActiveOrders()
+      } else {
+        toast.error(result.error || 'Failed to update status')
+      }
+    } catch (error) {
+      console.error('Error updating status:', error)
+      toast.error('Failed to update status')
+    }
+  }
+
+  const handleMarkAsServed = async (order) => {
+    if (confirm(`Mark order ${order.orderNumber} as served?`)) {
+      try {
+        const response = await captainFetch(`/api/orders/${order._id}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'served' })
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          toast.success(
+            <div>
+              <p className="font-bold">Order Served! 🍽️</p>
+              <p className="text-sm">Table {order.tableNumber} - Enjoy your meal!</p>
+            </div>
+          )
+          fetchActiveOrders()
+        } else {
+          toast.error(result.error || 'Failed to mark as served')
+        }
+      } catch (error) {
+        console.error('Error marking as served:', error)
+        toast.error('Failed to mark as served')
+      }
+    }
+  }
+
+  const handleViewDetails = (order) => {
+    router.push(`/captain/orders/${order._id}`)
+  }
+
+  if (loading || dataLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 flex items-center justify-center">
         <div className="text-center">
@@ -35,43 +136,15 @@ export default function ActiveOrdersPage() {
     )
   }
 
-  // Filter active orders (confirmed, preparing, ready)
-  const activeOrders = orders.filter(order => 
-    currentCaptain?.assignedTables.includes(parseInt(order.tableNumber)) &&
-    ['confirmed', 'preparing', 'ready'].includes(order.status)
-  )
-
   const filteredOrders = selectedStatus === 'all' 
-    ? activeOrders 
-    : activeOrders.filter(order => order.status === selectedStatus)
+    ? orders 
+    : orders.filter(order => order.status === selectedStatus)
 
   const statusCounts = {
-    all: activeOrders.length,
-    confirmed: activeOrders.filter(o => o.status === 'confirmed').length,
-    preparing: activeOrders.filter(o => o.status === 'preparing').length,
-    ready: activeOrders.filter(o => o.status === 'ready').length,
-  }
-
-  const handleUpdateStatus = (order, newStatus) => {
-    updateOrderStatus(order.id, newStatus)
-    const statusConfig = STATUS_CONFIG[newStatus]
-    toast.success(`Order ${order.orderNumber} marked as ${statusConfig.label}`)
-  }
-
-  const handleMarkAsServed = (order) => {
-    if (confirm(`Mark order ${order.orderNumber} as served?`)) {
-      updateOrderStatus(order.id, 'served')
-      toast.success(
-        <div>
-          <p className="font-bold">Order Served! 🍽️</p>
-          <p className="text-sm">Table {order.tableNumber} - Enjoy your meal!</p>
-        </div>
-      )
-    }
-  }
-
-  const handleViewDetails = (order) => {
-    router.push(`/captain/orders/${order.id}`)
+    all: orders.length,
+    confirmed: orders.filter(o => o.status === 'confirmed').length,
+    preparing: orders.filter(o => o.status === 'preparing').length,
+    ready: orders.filter(o => o.status === 'ready').length,
   }
 
   return (
@@ -96,7 +169,7 @@ export default function ActiveOrdersPage() {
                 Active Orders
               </h1>
               <p className="text-gray-600 mt-1">
-                {activeOrders.length} {activeOrders.length === 1 ? 'order' : 'orders'} in progress
+                {orders.length} {orders.length === 1 ? 'order' : 'orders'} in progress
               </p>
             </div>
           </div>
@@ -151,7 +224,7 @@ export default function ActiveOrdersPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {filteredOrders.map((order, index) => (
               <div
-                key={order.id}
+                key={order._id}
                 className="animate-slide-up"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >

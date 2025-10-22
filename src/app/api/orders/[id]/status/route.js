@@ -41,21 +41,21 @@ export async function PUT(request, { params }) {
     await order.changeStatus(status, user._id)
     
     // If order is completed, update table status
-    if (status === 'completed' || status === 'served') {
-      const table = await Table.findById(order.table)
-      if (table && table.currentOrder?.toString() === order._id.toString()) {
-        // Check if there are more orders for this table
-        const pendingOrders = await Order.countDocuments({
-          table: table._id,
-          status: { $in: ['pending', 'confirmed', 'preparing', 'ready'] }
-        })
+    // if (status === 'completed' || status === 'served') {
+    //   const table = await Table.findById(order.table)
+    //   if (table && table.currentOrder?.toString() === order._id.toString()) {
+    //     // Check if there are more orders for this table
+    //     const pendingOrders = await Order.countDocuments({
+    //       table: table._id,
+    //       status: { $in: ['pending', 'confirmed', 'preparing', 'ready'] }
+    //     })
         
-        if (pendingOrders === 0) {
-          // No more pending orders, table can be marked as available after payment
-          table.currentOrder = null
-        }
-      }
-    }
+    //     if (pendingOrders === 0) {
+    //       // No more pending orders, table can be marked as available after payment
+    //       table.currentOrder = null
+    //     }
+    //   }
+    // }
     
     await order.populate([
       { path: 'table', select: 'tableNumber location' },

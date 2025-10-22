@@ -3,27 +3,58 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCaptain } from '@/context/CaptainContext'
-import { useOrders } from '@/context/OrdersContext'
 import CaptainNavbar from '@/components/captain/CaptainNavbar'
 import TableCard from '@/components/captain/TableCard'
-import { tables } from '@/data/tables'
+import toast from 'react-hot-toast'
 
 export default function TablesManagementPage() {
   const router = useRouter()
-  const { currentCaptain, isAuthenticated } = useCaptain()
-  const { orders } = useOrders()
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all') // all, occupied, vacant, ac, non-ac
+  const { currentCaptain, isAuthenticated, loading, captainFetch } = useCaptain()
+  const [dataLoading, setDataLoading] = useState(true)
+  const [tables, setTables] = useState([])
+  const [orders, setOrders] = useState([])
+  const [filter, setFilter] = useState('all') // all, occupied, available, reserved
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!loading && !isAuthenticated) {
       router.push('/captain/login')
       return
     }
-    setLoading(false)
-  }, [isAuthenticated, router])
 
-  if (loading) {
+    if (isAuthenticated) {
+      fetchData()
+    }
+  }, [isAuthenticated, loading, router])
+
+  const fetchData = async () => {
+    try {
+      setDataLoading(true)
+
+      // Fetch tables
+      const tablesResponse = await captainFetch('/api/tables')
+      const tablesData = await tablesResponse.json()
+
+      if (tablesData.success) {
+        setTables(tablesData.data.tables)
+      }
+
+      // Fetch active orders
+      const ordersResponse = await captainFetch('/api/orders?kitchenStatus=true')
+      const ordersData = await ordersResponse.json()
+
+      if (ordersData.success) {
+        setOrders(ordersData.data.orders)
+      }
+
+      setDataLoading(false)
+    } catch (error) {
+      console.error('Error fetching data:', error)
+      toast.error('Failed to load tables')
+      setDataLoading(false)
+    }
+  }
+
+  if (loading || dataLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 flex items-center justify-center">
         <div className="text-center">
@@ -34,36 +65,29 @@ export default function TablesManagementPage() {
     )
   }
 
-  // Get captain's assigned tables
-  const myTables = tables.filter(table => 
-    currentCaptain?.assignedTables.includes(table.number)
-  )
-
   // Apply filters
-  const filteredTables = myTables.filter(table => {
+  const filteredTables = tables.filter(table => {
     if (filter === 'occupied') return table.status === 'occupied'
-    if (filter === 'vacant') return table.status === 'vacant'
-    if (filter === 'ac') return table.type === 'AC'
-    if (filter === 'non-ac') return table.type === 'Non-AC'
+    if (filter === 'available') return table.status === 'available'
+    if (filter === 'reserved') return table.status === 'reserved'
     return true
   })
 
-  const occupiedCount = myTables.filter(t => t.status === 'occupied').length
-  const vacantCount = myTables.filter(t => t.status === 'vacant').length
-  const acCount = myTables.filter(t => t.type === 'AC').length
-  const nonAcCount = myTables.filter(t => t.type === 'Non-AC').length
+  const occupiedCount = tables.filter(t => t.status === 'occupied').length
+  const availableCount = tables.filter(t => t.status === 'available').length
+  const reservedCount = tables.filter(t => t.status === 'reserved').length
 
   const handleViewTableDetails = (table) => {
     // Find active orders for this table
     const tableOrders = orders.filter(order => 
-      parseInt(order.tableNumber) === table.number &&
+      order.tableNumber === table.tableNumber &&
       ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status)
     )
 
     if (tableOrders.length > 0) {
-      alert(`Table ${table.number} has ${tableOrders.length} active order(s)`)
+      router.push(`/captain/tables/${table._id}`)
     } else {
-      alert(`Table ${table.number} is ${table.status}`)
+      toast.info(`Table ${table.tableNumber} - ${table.status}`)
     }
   }
 
@@ -86,10 +110,10 @@ export default function TablesManagementPage() {
             <div>
               <h1 className="font-display text-3xl font-bold text-gray-900 flex items-center">
                 <span className="mr-3">🪑</span>
-                My Tables
+                Tables Management
               </h1>
               <p className="text-gray-600 mt-1">
-                {myTables.length} tables assigned to you
+                {tables.length} tables in restaurant
               </p>
             </div>
           </div>
@@ -101,7 +125,7 @@ export default function TablesManagementPage() {
                 <p className="text-sm font-medium text-gray-600">Total Tables</p>
                 <span className="text-2xl">🪑</span>
               </div>
-              <p className="text-3xl font-bold text-gray-900">{myTables.length}</p>
+              <p className="text-3xl font-bold text-gray-900">{tables.length}</p>
             </div>
 
             <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-5 border-2 border-red-200">
@@ -114,10 +138,10 @@ export default function TablesManagementPage() {
 
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-5 border-2 border-green-200">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-green-700">Vacant</p>
+                <p className="text-sm font-medium text-green-700">Available</p>
                 <span className="text-2xl">🟢</span>
               </div>
-              <p className="text-3xl font-bold text-green-600">{vacantCount}</p>
+              <p className="text-3xl font-bold text-green-600">{availableCount}</p>
             </div>
 
             <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 border-2 border-blue-200">
@@ -126,7 +150,7 @@ export default function TablesManagementPage() {
                 <span className="text-2xl">📊</span>
               </div>
               <p className="text-3xl font-bold text-blue-600">
-                {myTables.length > 0 ? Math.round((occupiedCount / myTables.length) * 100) : 0}%
+                {tables.length > 0 ? Math.round((occupiedCount / tables.length) * 100) : 0}%
               </p>
             </div>
           </div>
@@ -141,7 +165,7 @@ export default function TablesManagementPage() {
                   : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
               }`}
             >
-              All ({myTables.length})
+              All ({tables.length})
             </button>
             <button
               onClick={() => setFilter('occupied')}
@@ -154,34 +178,24 @@ export default function TablesManagementPage() {
               🔴 Occupied ({occupiedCount})
             </button>
             <button
-              onClick={() => setFilter('vacant')}
+              onClick={() => setFilter('available')}
               className={`flex-shrink-0 px-5 py-2.5 rounded-xl font-medium transition-all ${
-                filter === 'vacant'
+                filter === 'available'
                   ? 'bg-green-500 text-white shadow-md'
                   : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
               }`}
             >
-              🟢 Vacant ({vacantCount})
+              🟢 Available ({availableCount})
             </button>
             <button
-              onClick={() => setFilter('ac')}
+              onClick={() => setFilter('reserved')}
               className={`flex-shrink-0 px-5 py-2.5 rounded-xl font-medium transition-all ${
-                filter === 'ac'
+                filter === 'reserved'
                   ? 'bg-blue-500 text-white shadow-md'
                   : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
               }`}
             >
-              ❄️ AC ({acCount})
-            </button>
-            <button
-              onClick={() => setFilter('non-ac')}
-              className={`flex-shrink-0 px-5 py-2.5 rounded-xl font-medium transition-all ${
-                filter === 'non-ac'
-                  ? 'bg-orange-500 text-white shadow-md'
-                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-              }`}
-            >
-              🌤️ Non-AC ({nonAcCount})
+              📅 Reserved ({reservedCount})
             </button>
           </div>
         </div>
@@ -191,7 +205,7 @@ export default function TablesManagementPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredTables.map((table, index) => (
               <div
-                key={table.id}
+                key={table._id}
                 className="animate-slide-up"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
@@ -230,18 +244,20 @@ export default function TablesManagementPage() {
           </h2>
           
           <div className="grid grid-cols-5 gap-4">
-            {myTables.map((table) => (
+            {tables.slice(0, 20).map((table) => (
               <button
-                key={table.id}
+                key={table._id}
                 onClick={() => handleViewTableDetails(table)}
                 className={`aspect-square rounded-2xl border-2 flex flex-col items-center justify-center transition-all hover:scale-105 ${
                   table.status === 'occupied'
                     ? 'bg-red-100 border-red-400 hover:border-red-500'
+                    : table.status === 'reserved'
+                    ? 'bg-blue-100 border-blue-400 hover:border-blue-500'
                     : 'bg-green-100 border-green-400 hover:border-green-500'
                 }`}
               >
                 <span className="text-3xl mb-2">🪑</span>
-                <p className="font-bold text-sm">{table.number}</p>
+                <p className="font-bold text-sm">{table.tableNumber}</p>
                 <p className="text-xs text-gray-600">{table.capacity}👥</p>
               </button>
             ))}
@@ -254,7 +270,11 @@ export default function TablesManagementPage() {
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 bg-green-500 rounded"></div>
-              <span className="text-gray-600">Vacant</span>
+              <span className="text-gray-600">Available</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-blue-500 rounded"></div>
+              <span className="text-gray-600">Reserved</span>
             </div>
           </div>
         </div>

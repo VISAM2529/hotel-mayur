@@ -10,7 +10,7 @@ import { requireAuth, handleAuthError } from '@/lib/auth'
 // GET all orders with filters
 export async function GET(request) {
   try {
-    const user = await requireAuth(request)
+    // const user = await requireAuth(request)
     await connectDB()
     
     const { searchParams } = new URL(request.url)
@@ -110,11 +110,11 @@ export async function GET(request) {
 // POST - Create new order
 export async function POST(request) {
   try {
-    const user = await requireAuth(request)
+    // const user = await requireAuth(request)
     await connectDB()
     
     const data = await request.json()
-    
+    console.log('Order data received:', data)
     // Validate required fields
     if (!data.tableNumber || !data.items || data.items.length === 0) {
       return NextResponse.json(
@@ -195,7 +195,7 @@ export async function POST(request) {
         sessionNumber,
         table: table._id,
         tableNumber: table.tableNumber,
-        startedBy: user._id
+        // startedBy: user._id
       })
       session = newSession._id
       table.currentSession = session
@@ -219,7 +219,7 @@ export async function POST(request) {
       notes: data.notes,
       isSupplementary: data.isSupplementary || false,
       parentOrder: data.parentOrder,
-      createdBy: user._id,
+    //   createdBy: user._id,
       customer: data.customer
     })
     
