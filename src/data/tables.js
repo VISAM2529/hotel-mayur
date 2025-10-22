@@ -1,0 +1,17 @@
+export const tables = [
+  { id: 1, number: 1, capacity: 2, type: 'AC', status: 'vacant', floor: 'Ground' },
+  { id: 2, number: 2, capacity: 4, type: 'AC', status: 'occupied', floor: 'Ground' },
+  { id: 3, number: 3, capacity: 4, type: 'AC', status: 'occupied', floor: 'Ground' },
+  { id: 4, number: 4, capacity: 6, type: 'AC', status: 'vacant', floor: 'Ground' },
+  { id: 5, number: 5, capacity: 2, type: 'Non-AC', status: 'occupied', floor: 'Ground' },
+  { id: 6, number: 6, capacity: 4, type: 'Non-AC', status: 'vacant', floor: 'Ground' },
+  { id: 7, number: 7, capacity: 4, type: 'Non-AC', status: 'vacant', floor: 'Ground' },
+  { id: 8, number: 8, capacity: 6, type: 'Non-AC', status: 'occupied', floor: 'Ground' },
+  { id: 9, number: 9, capacity: 8, type: 'AC', status: 'vacant', floor: 'First' },
+  { id: 10, number: 10, capacity: 2, type: 'AC', status: 'vacant', floor: 'First' },
+  { id: 11, number: 11, capacity: 4, type: 'AC', status: 'occupied', floor: 'First' },
+  { id: 12, number: 12, capacity: 4, type: 'Non-AC', status: 'vacant', floor: 'First' },
+  { id: 13, number: 13, capacity: 6, type: 'Non-AC', status: 'occupied', floor: 'First' },
+  { id: 14, number: 14, capacity: 4, type: 'Non-AC', status: 'vacant', floor: 'First' },
+  { id: 15, number: 15, capacity: 2, type: 'AC', status: 'vacant', floor: 'First' },
+]

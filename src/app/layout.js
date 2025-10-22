@@ -2,6 +2,9 @@ import { Inter, Playfair_Display } from 'next/font/google'
 import './globals.css'
 import { CartProvider } from '@/context/CartContext'
 import { OrdersProvider } from '@/context/OrdersContext'
+import { CaptainProvider } from '@/context/CaptainContext'
+import { AdminProvider } from '@/context/AdminContext'
+import { KitchenProvider } from '@/context/KitchenContext'
 import { Toaster } from 'react-hot-toast'
 
 const inter = Inter({ 
@@ -26,32 +29,38 @@ export default function RootLayout({ children }) {
       <body>
         <CartProvider>
           <OrdersProvider>
-            {children}
-            <Toaster 
-              position="top-center"
-              toastOptions={{
-                duration: 3000,
-                style: {
-                  background: '#fff',
-                  color: '#1F1F1F',
-                  padding: '16px',
-                  borderRadius: '12px',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                },
-                success: {
-                  iconTheme: {
-                    primary: '#10B981',
-                    secondary: '#fff',
-                  },
-                },
-                error: {
-                  iconTheme: {
-                    primary: '#EF4444',
-                    secondary: '#fff',
-                  },
-                },
-              }}
-            />
+            <CaptainProvider>
+              <AdminProvider>
+                <KitchenProvider>
+                {children}
+                <Toaster 
+                  position="top-center"
+                  toastOptions={{
+                    duration: 3000,
+                    style: {
+                      background: '#fff',
+                      color: '#1F1F1F',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                    },
+                    success: {
+                      iconTheme: {
+                        primary: '#10B981',
+                        secondary: '#fff',
+                      },
+                    },
+                    error: {
+                      iconTheme: {
+                        primary: '#EF4444',
+                        secondary: '#fff',
+                      },
+                    },
+                  }}
+                />
+                </KitchenProvider>
+              </AdminProvider>
+            </CaptainProvider>
           </OrdersProvider>
         </CartProvider>
       </body>
