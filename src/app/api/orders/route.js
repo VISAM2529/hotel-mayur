@@ -18,10 +18,22 @@ export async function GET(request) {
     // Build query
     const query = {}
     
-    // Filter by status
+    // Filter by status (handle comma-separated values)
     const status = searchParams.get('status')
     if (status) {
-      query.status = status
+      // Check if comma-separated
+      if (status.includes(',')) {
+        query.status = { $in: status.split(',').map(s => s.trim()) }
+      } else {
+        query.status = status
+      }
+    }
+    
+    // Filter by order IDs (for billing page)
+    const ids = searchParams.get('ids')
+    if (ids) {
+      const idArray = ids.split(',').map(id => id.trim())
+      query._id = { $in: idArray }
     }
     
     // Filter by table
@@ -55,6 +67,9 @@ export async function GET(request) {
       query.status = { $in: kitchenStatuses }
     }
     
+    // Check if populate is requested
+    const shouldPopulate = searchParams.get('populate') === 'true'
+    
     // Pagination
     const page = parseInt(searchParams.get('page')) || 1
     const limit = parseInt(searchParams.get('limit')) || 50
@@ -65,18 +80,37 @@ export async function GET(request) {
     const sortOrder = searchParams.get('sortOrder') === 'asc' ? 1 : -1
     const sort = { [sortBy]: sortOrder }
     
+    console.log('Order query:', query)
+    
     // Execute query
-    const orders = await Order.find(query)
-      .populate('table', 'tableNumber location')
-      .populate('createdBy', 'name')
-      .populate('servedBy', 'name')
+    let ordersQuery = Order.find(query)
       .sort(sort)
       .skip(skip)
       .limit(limit)
-      .lean()
+    
+    // Add population if requested
+    if (shouldPopulate) {
+      ordersQuery = ordersQuery
+        .populate('table', 'tableNumber location type floor capacity')
+        .populate('createdBy', 'name')
+        .populate('servedBy', 'name')
+        .populate({
+          path: 'items.menuItem',
+          select: 'name description price category image isVegetarian spiceLevel'
+        })
+    } else {
+      ordersQuery = ordersQuery
+        .populate('table', 'tableNumber location')
+        .populate('createdBy', 'name')
+        .populate('servedBy', 'name')
+    }
+    
+    const orders = await ordersQuery.lean()
     
     // Get total count
     const total = await Order.countDocuments(query)
+    
+    console.log(`Found ${orders.length} orders`)
     
     return NextResponse.json(
       {
@@ -115,6 +149,7 @@ export async function POST(request) {
     
     const data = await request.json()
     console.log('Order data received:', data)
+    
     // Validate required fields
     if (!data.tableNumber || !data.items || data.items.length === 0) {
       return NextResponse.json(

@@ -1,6 +1,7 @@
 // src/models/Table.js
 import mongoose from 'mongoose'
-
+import TableSession from './TableSession.js'
+import Order from './Order.js'
 const tableSchema = new mongoose.Schema({
   tableNumber: {
     type: Number,
